@@ -22,6 +22,8 @@ st.set_page_config(
 # Session memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "chat_titles" not in st.session_state:
+    st.session_state.chat_titles = []
 
 # Title
 st.markdown("""
@@ -163,10 +165,7 @@ footer {
     background: #C7CBD1;
     border-radius: 10px;
 }
-/* Smooth transitions */
-* {
-    transition: 0.2s ease;
-}
+
 /* Hover effect for chat bubbles */
 [data-testid="stChatMessage"]:hover {
     transform: translateY(-2px);
@@ -190,11 +189,28 @@ with st.sidebar:
             "Beginner Explanation",
             "Detailed Research",
             "Exam Preparation",
-            "Technical Explanation"
+            "Technical Explanation",
+            "Research Report"
         ]
     )
 
     st.write("### Suggested Topics")
+    st.write("### Study Tools")
+
+    if st.button("📝 Generate Quiz"):
+        st.session_state.suggested_prompt = (
+            "Generate 5 quiz questions with answers based on the previous topic discussed."
+        )
+
+    if st.button("🎓 Viva Questions"):
+        st.session_state.suggested_prompt = (
+            "Generate 10 viva questions with answers based on the previous topic discussed."
+        )
+    st.divider()
+    st.write("### Recent Chats")
+
+    for title in reversed(st.session_state.chat_titles[-5:]):
+        st.caption("💬 " + title)
 
     if st.button("Machine Learning"):
         st.session_state.suggested_prompt = "Explain Machine Learning in detail."
@@ -252,7 +268,12 @@ if user_input:
     st.session_state.messages.append({
         "role": "user",
         "content": user_input
-    })    
+    })
+    if len(st.session_state.chat_titles) < 10:
+        if user_input not in st.session_state.chat_titles:
+            st.session_state.chat_titles.append(
+                user_input[:40]
+            )    
 
    
     # Generate AI response
@@ -312,6 +333,27 @@ If the mode is "Technical Explanation":
 - Focus on precision and technical accuracy
 
 ========================
+If the mode is "Research Report":
+
+- Generate a structured research-style report
+- Use markdown headings
+- Include:
+
+## Abstract
+## Introduction
+## Key Concepts
+## Applications
+## Advantages
+## Challenges
+## Conclusion
+
+- Keep the report professional and academic
+- Use clear sectioning
+For Research Report mode:
+- Make every major section a level 2 heading (##)
+- Use bullet points where appropriate
+- Keep an academic writing style
+========================
 
 General Rules:
 
@@ -363,6 +405,7 @@ General Rules:
                 file_name="response.txt",
                 mime="text/plain"
             )
+           
 
             
             st.markdown(
