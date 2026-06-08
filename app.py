@@ -1,6 +1,7 @@
 import streamlit as st
 from groq import Groq
 from dotenv import load_dotenv
+from pypdf import PdfReader
 import os
 import time
 
@@ -24,6 +25,80 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_titles" not in st.session_state:
     st.session_state.chat_titles = []
+def detect_intent(user_input):
+
+    text = user_input.lower()
+
+    if "quiz" in text:
+        return "quiz"
+
+    elif "viva" in text:
+        return "viva"
+
+    elif "study pack" in text:
+        return "study_pack"
+
+    elif "notes" in text:
+        return "notes"
+
+    else:
+        return "research"
+def detect_mode(user_input):
+
+    text = user_input.lower()
+
+    beginner_keywords = [
+        "simple",
+        "simply",
+        "simplify",
+        "easy",
+        "beginner"
+    ]
+
+    exam_keywords = [
+        "exam",
+        "notes",
+        "revision",
+        "important questions"
+    ]
+
+    technical_keywords = [
+        "technical",
+        "advanced",
+        "mathematical",
+        "architecture"
+    ]
+
+    report_keywords = [
+        "report",
+        "research paper",
+        "research report"
+    ]
+
+    if any(word in text for word in beginner_keywords):
+        return "Beginner Explanation"
+
+    elif any(word in text for word in exam_keywords):
+        return "Exam Preparation"
+
+    elif any(word in text for word in technical_keywords):
+        return "Technical Explanation"
+
+    elif any(word in text for word in report_keywords):
+        return "Research Report"
+
+    else:
+        return "Detailed Research"  
+def is_research_topic(user_input):
+
+    text = user_input.strip()
+
+    words = len(text.split())
+
+    if words <= 4:
+        return True
+
+    return False     
 
 # Title
 st.markdown("""
@@ -182,6 +257,15 @@ with st.sidebar:
     st.header("🧠 Nexus Tools")
     st.write("### Research Mode")
     st.divider()
+    st.write("### 🤖 Agent Status")
+
+    if "last_intent" in st.session_state:
+
+        st.success(f"Intent: {st.session_state.last_intent}")
+
+        st.info(f"Mode: {st.session_state.last_mode}")
+
+        st.warning(f"Tool: {st.session_state.last_tool}")
 
     research_mode = st.selectbox(
         "Choose response style",
@@ -194,7 +278,7 @@ with st.sidebar:
         ]
     )
 
-    st.write("### Suggested Topics")
+    
     st.write("### Study Tools")
 
     if st.button("📝 Generate Quiz"):
@@ -206,9 +290,63 @@ with st.sidebar:
         st.session_state.suggested_prompt = (
             "Generate 10 viva questions with answers based on the previous topic discussed."
         )
-    st.divider()
-    st.write("### Recent Chats")
+    if st.button("📦 Generate Study Pack"):
+        st.session_state.suggested_prompt = (
+                """
+        Create a complete study pack based on the previous topic discussed.
 
+        Include:
+
+        # Summary
+
+        # Exam Notes
+
+        # Key Concepts
+
+        # 10 Viva Questions with Answers
+
+        # 5 Quiz Questions with Answers
+
+        Use proper markdown formatting.
+        """
+        ) 
+    st.write("### 📄 Document Analysis")
+
+    uploaded_file = st.file_uploader(
+        "Upload PDF",
+        type=["pdf"]
+    )
+    pdf_text = ""
+    
+
+    if uploaded_file:
+
+        pdf_reader = PdfReader(uploaded_file)
+
+        for page in pdf_reader.pages:
+
+            text = page.extract_text()
+
+            if text:
+                pdf_text += text + "\n"
+        st.session_state.pdf_text = pdf_text
+        
+
+        st.success(f"PDF loaded successfully! ({len(pdf_text.split())} words extracted)")
+        with st.expander("📄 PDF Preview"):
+
+            st.text_area(
+            "Extracted Text",
+            pdf_text[:2000],
+            height=250)       
+    st.divider()
+    st.write("### 💬 Recent Chats")
+
+    for title in reversed(st.session_state.chat_titles[-5:]):
+        st.caption("💬 " + title)
+
+    st.divider()
+    st.write("### 💡 Suggested Topics")
     for title in reversed(st.session_state.chat_titles[-5:]):
         st.caption("💬 " + title)
 
@@ -269,13 +407,102 @@ if user_input:
         "role": "user",
         "content": user_input
     })
-    if len(st.session_state.chat_titles) < 10:
-        if user_input not in st.session_state.chat_titles:
-            st.session_state.chat_titles.append(
-                user_input[:40]
-            )    
+    intent = detect_intent(user_input)
+    auto_mode = detect_mode(user_input)
+    research_agent = is_research_topic(user_input)
+    st.session_state.last_intent = intent
 
+    st.session_state.last_mode = auto_mode
+
+    st.session_state.last_tool = (
+        "Research Agent"
+        if research_agent
+        else f"{intent.title()} Tool"
+    )
+    
+    if intent == "quiz":
+
+        tool_prompt = """
+    Generate 10 quiz questions with answers.
+    Use proper numbering.
+    """
+
+    elif intent == "viva":
+
+        tool_prompt = """
+Generate 10 viva questions with detailed answers.
+"""
+
+    elif intent == "study_pack":
+
+        tool_prompt = """
+Create a complete study pack.
+
+Include:
+
+# Summary
+
+# Exam Notes
+
+# Key Concepts
+
+# 10 Viva Questions with Answers
+
+# 5 Quiz Questions with Answers
+"""
+
+    elif intent == "notes":
+
+        tool_prompt = """
+Generate concise exam notes.
+Use bullet points.
+Focus on important concepts.
+"""
+
+    else:
+
+        tool_prompt = ""
+        st.write("Intent:", intent)
+        if len(st.session_state.chat_titles) < 10:
+            if user_input not in st.session_state.chat_titles:
+                st.session_state.chat_titles.append(
+                    user_input[:40]
+                )    
+    if research_agent:
+
+        tool_prompt += """
+
+Research Agent Instructions:
+
+Generate:
+
+# Overview
+
+# Key Concepts
+
+# Applications
+
+# Advantages
+
+# Challenges
+
+# Future Scope
+
+Use professional markdown formatting.
+"""
    
+    pdf_context = ""
+
+    if "pdf_text" in st.session_state:
+
+            pdf_context = f"""
+        Uploaded PDF Content:
+
+        {st.session_state.pdf_text[:10000]}
+
+        Use this PDF as the PRIMARY source whenever the user asks about the uploaded document.
+        """
+    st.write(pdf_context[:500])
     # Generate AI response
     with st.spinner("AI is thinking..."):
         completion = client.chat.completions.create(
@@ -289,8 +516,22 @@ if user_input:
 You MUST strictly follow the selected response mode.
 
 Current Mode:
-{research_mode}
+{auto_mode}
 
+Current Agent Tool:
+{tool_prompt}
+
+PDF Context:
+{pdf_context}
+If PDF Context is provided:
+
+- Treat the uploaded PDF as the primary source.
+- Answer questions using the PDF content first.
+- Generate quizzes, viva questions, notes, and summaries from the PDF.
+- Only use general knowledge if the answer is not present in the PDF.
+
+The instructions in Current Agent Tool are HIGH PRIORITY.
+Follow them strictly whenever they are provided.
 ========================
 
 If the mode is "Beginner Explanation":
